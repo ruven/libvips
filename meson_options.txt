@@ -10,6 +10,11 @@ option('examples',
   value: true, 
   description: 'Build example programs')
 
+option('cplusplus', 
+  type: 'boolean', 
+  value: true, 
+  description: 'Build C++ API')
+
 option('doxygen', 
   type: 'boolean', 
   value: false, 
@@ -26,9 +31,9 @@ option('modules',
   description: 'Build dynamic modules')
 
 option('introspection', 
-  type: 'boolean', 
-  value: true, 
-  description: 'Build GObject introspection')
+  type: 'feature', 
+  value: 'auto', 
+  description: 'Build GObject introspection data')
 
 option('vapi', 
   type: 'boolean', 
@@ -62,10 +67,10 @@ option('fontconfig',
   value: 'auto', 
   description: 'Build with fontconfig')
 
-option('gsf', 
+option('archive', 
   type: 'feature', 
   value: 'auto', 
-  description: 'Build with libgsf-1')
+  description: 'Build with libarchive')
 
 option('heif', 
   type: 'feature', 
@@ -157,6 +162,11 @@ option('openslide-module',
   type: 'feature',
   value: 'auto',
   description: 'Build OpenSlide as module')
+
+option('highway',
+  type: 'feature',
+  value: 'auto',
+  description: 'Build with highway')
 
 option('orc',
   type: 'feature',

@@ -1,6 +1,6 @@
 variables_data = configuration_data()
-variables_data.set('abs_top_srcdir', meson.project_source_root())
-variables_data.set('abs_top_builddir', meson.project_build_root())
+variables_data.set('abs_top_srcdir', project_source_root)
+variables_data.set('abs_top_builddir', project_build_root)
 variables_data.set('PYTHON', pymod.find_installation().full_path())
 
 variables_sh = configure_file(
@@ -15,6 +15,7 @@ script_tests = [
     'seq',
     'stall',
     'threading',
+    'keep'
 ]
 
 foreach script_test : script_tests
@@ -58,5 +59,16 @@ test_descriptors_sh = configure_file(
 test('descriptors',
     test_descriptors_sh,
     depends: test_descriptors,
+    workdir: meson.current_build_dir(),
+)
+
+test_timeout_webpsave = executable('test_timeout_webpsave',
+    'test_timeout_webpsave.c',
+    dependencies: libvips_dep,
+)
+
+test('webpsave_timeout',
+    test_timeout_webpsave,
+    depends: test_timeout_webpsave,
     workdir: meson.current_build_dir(),
 )

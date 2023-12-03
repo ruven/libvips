@@ -348,7 +348,7 @@
 </row>
 <row>
   <entry>convsep</entry>
-  <entry>Seperable convolution operation</entry>
+  <entry>Separable convolution operation</entry>
   <entry>vips_convsep()</entry>
 </row>
 <row>
@@ -1172,6 +1172,11 @@
   <entry>vips_premultiply()</entry>
 </row>
 <row>
+  <entry>prewitt</entry>
+  <entry>Prewitt edge detector</entry>
+  <entry>vips_prewitt()</entry>
+</row>
+<row>
   <entry>profile</entry>
   <entry>Find image profiles</entry>
   <entry>vips_profile()</entry>
@@ -1345,6 +1350,11 @@
   <entry>scale</entry>
   <entry>Scale an image to uchar</entry>
   <entry>vips_scale()</entry>
+</row>
+<row>
+  <entry>scharr</entry>
+  <entry>Scharr edge detector</entry>
+  <entry>vips_scharr()</entry>
 </row>
 <row>
   <entry>sequential</entry>
@@ -1568,23 +1578,23 @@
 </row>
 <row>
   <entry>webpsave</entry>
-  <entry>Save image to webp file</entry>
+  <entry>Save as webp</entry>
   <entry>vips_webpsave()</entry>
 </row>
 <row>
   <entry>webpsave_buffer</entry>
-  <entry>Save image to webp buffer</entry>
+  <entry>Save as webp</entry>
   <entry>vips_webpsave_buffer()</entry>
-</row>
-<row>
-  <entry>webpsave_target</entry>
-  <entry>Save image to webp target</entry>
-  <entry>vips_webpsave_target()</entry>
 </row>
 <row>
   <entry>webpsave_mime</entry>
   <entry>Save image to webp mime</entry>
   <entry>vips_webpsave_mime()</entry>
+</row>
+<row>
+  <entry>webpsave_target</entry>
+  <entry>Save as webp</entry>
+  <entry>vips_webpsave_target()</entry>
 </row>
 <row>
   <entry>worley</entry>

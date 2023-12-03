@@ -30,7 +30,7 @@ like DICOM.
 
 It comes with bindings for
 [C](https://libvips.github.io/libvips/API/current/using-from-c.html),
-[C++](https://libvips.github.io/libvips/API/current/using-from-cpp.html),
+[C++](https://libvips.github.io/libvips/API/current/libvips-from-C++.html),
 and the
 [command-line](https://libvips.github.io/libvips/API/current/using-cli.html).
 Full bindings are available for :
@@ -51,6 +51,7 @@ libvips is used as an image processing engine by:
 | |
 |---|
 | [sharp (on node.js)](https://www.npmjs.org/package/sharp) |
+| [imgproxy](https://github.com/imgproxy/imgproxy) |
 | [bimg](https://github.com/h2non/bimg) |
 | [sharp for Go](https://github.com/DAddYE/vips) |
 | [Ruby on Rails](https://edgeguides.rubyonrails.org/active_storage_overview.html) |
@@ -83,11 +84,13 @@ libvips must have `build-essential`, `pkg-config`, `libglib2.0-dev`,
 `libexpat1-dev`.  See the **Dependencies** section below for a full list
 of the libvips optional dependencies.
 
+There are basic bash completions in `completions/`, see the README in there.
+
 ## Cheatsheet 
 
 ```
 cd libvips-x.y.x
-meson build --prefix=/aaa/bbb/ccc
+meson setup build --prefix /my/install/prefix
 cd build
 meson compile
 meson test
@@ -105,13 +108,10 @@ configuration.
   see `meson_options.txt` and the list below for a summary of all the libvips
   dependencies.
 
-- Meson will do a debug build by default. Add `--buildtype=release` for a 
-  release (optimised) build.
-
-- You might need to add `--libdir=lib` on Debian if you don't want the arch 
+- You might need to add `--libdir lib` on Debian if you don't want the arch 
   name in the library path.
 
-- Add `--default-library=static` for a static build.
+- Add `--default-library static` for a static build.
 
 - Use eg. `CC=clang CXX=clang++ meson setup ...` to change compiler.
 
@@ -182,9 +182,9 @@ If available, libvips will save GIFs with
 [cgif](https://github.com/dloebl/cgif). If this is not present, vips will
 try to save gifs via imagemagick instead.
 
-### libgsf-1
+### libarchive
 
-If available, libvips adds support for creating image pyramids with `dzsave`. 
+If available, libvips adds support for creating image pyramids with `dzsave`.
 
 ### libtiff
 
@@ -228,10 +228,10 @@ enabling a package with such a large attack surface.
 If available, libvips adds support for text rendering. You need the
 package pangocairo in `pkg-config --list-all`.
 
-### orc-0.4
+### highway
 
-If available, vips will accelerate some operations with this run-time
-compiler.
+If present, libvips will accelerate some operations with SIMD. If not, it
+will look for the orc-0.4 package.
 
 ### matio
 
@@ -273,17 +273,20 @@ If available, libvips can load and save HEIC and AVIF images. Your libheif (in
 turn) needs to be built with the correct decoders and encoders. You can check
 with eg.:
 
-```
-$ pkg-config libheif --print-variables
-builtin_avif_decoder
-builtin_avif_encoder
-builtin_h265_decoder
-builtin_h265_encoder
-exec_prefix
-includedir
-libdir
-pcfiledir
-prefix
+```console
+$ heif-convert --list-decoders
+HEIC decoders:
+- libde265 = libde265 HEVC decoder, version 1.0.9
+AVIF decoders:
+- dav1d = dav1d v6.6.0
+- aom = AOMedia Project AV1 Decoder v3.5.0
+$ heif-enc --list-encoders
+HEIC encoders:
+- x265 = x265 HEVC encoder (3.5+1-f0c1022b6) [default]
+AVIF encoders:
+- aom = AOMedia Project AV1 Encoder v3.5.0 [default]
+- svt = SVT-AV1 encoder v1.1.0
+- rav1e = Rav1e encoder
 ```
 
 # Contributors
@@ -296,15 +299,6 @@ This project exists thanks to all the people who contribute.
 
 ### Organizations
 
-Support this project with your organization. Your logo will show up here with a link to your website. 
+We've had generous financial support from our sponsors. Thank you very much!
 
-<a href="https://opencollective.com/libvips/organization/0/website"><img src="https://opencollective.com/libvips/organization/0/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/1/website"><img src="https://opencollective.com/libvips/organization/1/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/2/website"><img src="https://opencollective.com/libvips/organization/2/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/3/website"><img src="https://opencollective.com/libvips/organization/3/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/4/website"><img src="https://opencollective.com/libvips/organization/4/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/5/website"><img src="https://opencollective.com/libvips/organization/5/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/6/website"><img src="https://opencollective.com/libvips/organization/6/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/7/website"><img src="https://opencollective.com/libvips/organization/7/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/8/website"><img src="https://opencollective.com/libvips/organization/8/avatar.svg"></a>
-<a href="https://opencollective.com/libvips/organization/9/website"><img src="https://opencollective.com/libvips/organization/9/avatar.svg"></a>
+<img src="https://opencollective.com/libvips/sponsors.svg?width=890&button=false" />

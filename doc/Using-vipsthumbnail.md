@@ -25,7 +25,7 @@ $image->writeToFile("my-thumbnail.jpg");
 
 You can also call `thumbnail_source` from the CLI, for example:
 
-```
+```bash
 $ cat k2.jpg | \
     vips thumbnail_source [descriptor=0] .jpg[Q=90] 128 | \
     cat > x.jpg
@@ -52,7 +52,7 @@ is running. 
 
 `vipsthumbnail` can process many images in one command. For example:
 
-```
+```bash
 $ vipsthumbnail *.jpg
 ```
 
@@ -64,7 +64,7 @@ where thumbnails are written.
 speedup by running several `vipsthumbnail`s in parallel, depending on how
 much load you want to put on your system. For example:
 
-```
+```bash
 $ parallel vipsthumbnail ::: *.jpg
 ```
 
@@ -73,14 +73,14 @@ $ parallel vipsthumbnail ::: *.jpg
 You can set the bounding box of the generated thumbnail with the `--size`
 option. For example:
 
-```
+```bash
 $ vipsthumbnail shark.jpg --size 200x100
 ```
 
 Use a single number to set a square bounding box. You can omit either number
 but keep the x to mean resize just based on that axis, for example:
 
-```
+```bash
 $ vipsthumbnail shark.jpg --size 200x
 ```
 
@@ -99,7 +99,7 @@ the aspect ratio.
 You can use the `--smartcrop` option to crop to fill the box instead. Excess
 pixels are trimmed away using the strategy you set. For example:
 
-```
+```bash
 $ vipsthumbnail owl.jpg --smartcrop attention -s 128
 ```
 
@@ -126,7 +126,7 @@ to the voltage that should be applied to the electron gun in a CRT display.
 `vipsthumbnail` has an option to perform image shrinking in linear space, that
 is, a colourspace where values are proportional to photon numbers. For example:
 
-```
+```bash
 $ vipsthumbnail fred.jpg --linear
 ```
 
@@ -137,7 +137,7 @@ photons. This can make linear light thumbnailing of large images extremely slow.
 
 For example, for a 10,000 x 10,000 pixel JPEG I see:
 
-```
+```bash
 $ time vipsthumbnail wtc.jpg 
 real	0m0.317s
 user	0m0.292s
@@ -154,7 +154,7 @@ You set the thumbnail write parameters with the `-o`
 option. This is a pattern which the input filename is pasted into to
 produce the output filename. For example:
 
-```
+```bash
 $ vipsthumbnail fred.jpg jim.tif -o tn_%s.jpg
 ```
 
@@ -167,7 +167,7 @@ If the pattern given to `-o` is an absolute path, any path components are
 dropped from the input filenames. This lets you write all of your thumbnails
 to a specific directory, if you want. For example:
 
-```
+```bash
 $ vipsthumbnail fred.jpg ../jim.tif -o /mythumbs/tn_%s.jpg
 ```
 
@@ -177,7 +177,7 @@ images are in different directories.
 Conversely, if `-o` is set to a relative path, any path component from the
 input file is prepended. For example:
 
-```
+```bash
 $ vipsthumbnail fred.jpg ../jim.tif -o mythumbs/tn_%s.jpg
 ```
 
@@ -188,7 +188,7 @@ their current directory.
 
 You can use `-o` to specify the thumbnail image format too. For example: 
 
-```
+```bash
 $ vipsthumbnail fred.jpg ../jim.tif -o tn_%s.png
 ```
 
@@ -197,7 +197,7 @@ Will write thumbnails in PNG format.
 You can give options to the image write operation as a list of comma-separated
 arguments in square brackets. For example:
 
-```
+```bash
 $ vipsthumbnail fred.jpg ../jim.tif -o tn_%s.jpg[Q=90,optimize_coding]
 ```
 
@@ -218,30 +218,35 @@ optional arguments:
    Q            - Q factor, input gint
 			default: 75
 			min: 1, max: 100
-   profile      - ICC profile to embed, input gchararray
+   profile      - Filename of ICC profile to embed, input gchararray
    optimize-coding - Compute optimal Huffman coding tables, input gboolean
 			default: false
    interlace    - Generate an interlaced (progressive) jpeg, input gboolean
-			default: false
-   no-subsample - Disable chroma subsample, input gboolean
 			default: false
    trellis-quant - Apply trellis quantisation to each 8x8 block, input gboolean
 			default: false
    overshoot-deringing - Apply overshooting to samples with extreme values, input gboolean
 			default: false
-   optimize-scans - Split the spectrum of DCT coefficients into separate scans, input gboolean
+   optimize-scans - Split spectrum of DCT coefficients into separate scans, input gboolean
 			default: false
    quant-table  - Use predefined quantization table with given index, input gint
 			default: 0
 			min: 0, max: 8
-   strip        - Strip all metadata from image, input gboolean
-			default: false
+   subsample-mode - Select chroma subsample operation mode, input VipsForeignSubsample
+			default enum: auto
+			allowed enums: auto, on, off
+   restart-interval - Add restart markers every specified number of mcu, input gint
+			default: 0
+			min: 0, max: 2147483647
+   keep         - Which metadata to retain, input VipsForeignKeep
+			default flags: exif:xmp:iptc:icc:other:all
+			allowed flags: none, exif, xmp, iptc, icc, other, all
    background   - Background value, input VipsArrayDouble
 ```
 
-The `strip` option is especially useful. Many image have very large IPCT, ICC or
-XMP metadata items embedded in them, and removing these can give a large
-saving. 
+The `keep` option is especially useful. Many image have very large IPTC,
+ICC or XMP metadata items embedded in them, and removing these can give a
+large saving.
 
 For example:
 
@@ -251,10 +256,10 @@ $ ls -l tn_42-32157534.jpg
 -rw-r–r– 1 john john 6682 Nov 12 21:27 tn_42-32157534.jpg
 ```
 
-`strip` almost halves the size of the thumbnail:
+`keep=none` almost halves the size of the thumbnail:
 
 ```
-$ vipsthumbnail 42-32157534.jpg -o x.jpg[optimize_coding,strip]
+$ vipsthumbnail 42-32157534.jpg -o x.jpg[optimize_coding,keep=none]
 $ ls -l x.jpg
 -rw-r–r– 1 john john 3600 Nov 12 21:27 x.jpg
 ```
@@ -275,8 +280,8 @@ $ ls -l tn_shark.jpg
 -rw-r–r– 1 john john 7295 Nov  9 14:33 tn_shark.jpg
 ```
 
-Now transform to sRGB and don't attach a profile (you can also use `strip`,
-though that will remove *all* metadata from the image):
+Now transform to sRGB and don't attach a profile (you can also use
+`keep=none`, though that will remove *all* metadata from the image):
 
 ```
 $ vipsthumbnail shark.jpg --export-profile srgb -o tn_shark.jpg[profile=none]
@@ -294,7 +299,7 @@ embedded one. For example, perhaps you somehow know that a JPG is in Adobe98
 space, even though it has no embedded profile. 
 
 
-```
+```bash
 $ vipsthumbnail kgdev.jpg --input-profile /my/profiles/a98.icm 
 ```
 
@@ -302,9 +307,9 @@ $ vipsthumbnail kgdev.jpg --input-profile /my/profiles/a98.icm
 
 Putting all this together, I suggest this as a sensible set of options:
 
-```
+```bash
 $ vipsthumbnail fred.jpg \
     --size 128 \
     --export-profile srgb \
-    -o tn_%s.jpg[optimize_coding,strip] 
+    -o tn_%s.jpg[optimize_coding,keep=none] 
 ```

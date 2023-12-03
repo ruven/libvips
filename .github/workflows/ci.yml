@@ -20,8 +20,8 @@ jobs:
             build: { cc: clang-14, cxx: clang++-14, linker: ld.lld-14, sanitize: true }
             shell: bash
 
-          - name: "macOS (11.6) - Xcode 13.2.1"
-            os: macos-11
+          - name: "macOS (12.6) - Xcode 14.2"
+            os: macos-12
             build: { cc: clang, cxx: clang++, linker: ld.lld }
             shell: bash
 
@@ -40,48 +40,47 @@ jobs:
       CXX: ${{ matrix.build.cxx }}
       LD: ${{ matrix.build.linker }}
       CPPFLAGS: -Wall
-      DEBIAN_FRONTEND: noninteractive
-      HOMEBREW_NO_AUTO_UPDATE: 1
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Update apt
         if: runner.os == 'Linux'
-        run: sudo -E apt-get update -qq -o Acquire::Retries=3
+        run: sudo apt-get update -qq
 
       - name: Install Ubuntu dependencies
         if: runner.os == 'Linux'
         run:
-          sudo -E apt-get install --fix-missing -qq -o Acquire::Retries=3
+          sudo apt-get install -fqq
             meson
             python3-pip python3-setuptools python3-wheel
             libfftw3-dev libexif-dev libjpeg-turbo8-dev
             libpng-dev libwebp-dev libtiff5-dev
             libheif-dev libexpat1-dev libcfitsio-dev
-            libmatio-dev libnifti-dev liborc-0.4-dev
+            libmatio-dev libnifti-dev libhwy-dev
             liblcms2-dev libpoppler-glib-dev librsvg2-dev
-            libopenexr-dev libpango1.0-dev libgsf-1-dev
+            libopenexr-dev libpango1.0-dev libarchive-dev
             libopenslide-dev libffi-dev libopenjp2-7-dev
             libimagequant-dev libcgif-dev
+            liborc-0.4-dev # FIXME: Remove once libhwy 1.0.5 is available.
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: |
-          brew install meson ninja fftw fontconfig glib libexif libgsf little-cms2 orc pango
-          brew install cfitsio libheif libimagequant libjpeg-turbo libmatio librsvg libspng libtiff openexr openjpeg openslide poppler webp cgif
+          brew install meson ninja fftw fontconfig glib libexif libarchive little-cms2 highway pango pkg-config
+          brew install cfitsio cgif jpeg-xl libheif libimagequant mozjpeg libmatio librsvg libspng libtiff openexr openjpeg openslide poppler webp
 
       - name: Install Clang 14
         if: runner.os == 'Linux' && matrix.build.cc == 'clang-14'
         run:
-          sudo -E apt-get install --fix-missing -qq -o Acquire::Retries=3
+          sudo apt-get install -fqq
             clang-14 libomp-14-dev lld-14 llvm-14
 
       - name: Prepare macOS environment
         if: runner.os == 'macOS'
         run: |
-          echo "PKG_CONFIG_PATH=$(brew --prefix jpeg-turbo)/lib/pkgconfig:$(brew --prefix libxml2)/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$(brew --prefix mozjpeg)/lib/pkgconfig:$(brew --prefix libarchive)/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
 
       - name: Prepare sanitizers
         if: matrix.build.sanitize
@@ -95,7 +94,9 @@ jobs:
           echo "ASAN_DSO=$ASAN_DSO" >> $GITHUB_ENV
           # Glib is built without -fno-omit-frame-pointer. We need
           # to disable the fast unwinder to get full stacktraces.
-          echo "ASAN_OPTIONS=suppressions=${{ github.workspace }}/suppressions/asan.supp:fast_unwind_on_malloc=0:allocator_may_return_null=1" >> $GITHUB_ENV
+          # FIXME: remove `intercept_tls_get_addr=0`
+          # https://github.com/google/sanitizers/issues/1322
+          echo "ASAN_OPTIONS=suppressions=${{ github.workspace }}/suppressions/asan.supp:fast_unwind_on_malloc=0:allocator_may_return_null=1:intercept_tls_get_addr=0" >> $GITHUB_ENV
           echo "LSAN_OPTIONS=suppressions=${{ github.workspace }}/suppressions/lsan.supp:fast_unwind_on_malloc=0" >> $GITHUB_ENV
           echo "TSAN_OPTIONS=suppressions=${{ github.workspace }}/suppressions/tsan.supp" >> $GITHUB_ENV
           # Ensure UBSan issues causes the program to abort.
@@ -112,7 +113,6 @@ jobs:
           meson setup build
             -Ddebug=true
             -Ddeprecated=false
-            -Dintrospection=false
           || (cat build/meson-logs/meson-log.txt && exit 1)
 
       - name: Build libvips
