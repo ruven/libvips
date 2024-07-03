@@ -142,25 +142,27 @@ vips_sequential_generate(VipsRegion *out_region,
 		 * Probably the operation is something like extract_area and
 		 * we should skip the initial part of the image. In fact,
 		 * we read to cache, since it may be useful.
+		 *
+		 * Read in chunks, since we may be skipping *many* lines of image from
+		 * a file source.
 		 */
-		VipsRect area;
+		int y;
 
-		/*
-		printf("vips_sequential_generate %p: skipping to line %d ...\n",
-			sequential, r->top);
-		 */
+		for (y = sequential->y_pos; y < r->top; y += sequential->tile_height) {
+			VipsRect area;
 
-		area.left = 0;
-		area.top = sequential->y_pos;
-		area.width = 1;
-		area.height = r->top - sequential->y_pos;
-		if (vips_region_prepare(ir, &area)) {
-			sequential->error = -1;
-			g_mutex_unlock(sequential->lock);
-			return -1;
+			area.left = 0;
+			area.top = y;
+			area.width = 1;
+			area.height = VIPS_MIN(sequential->tile_height, r->top - area.top);
+			if (vips_region_prepare(ir, &area)) {
+				sequential->error = -1;
+				g_mutex_unlock(sequential->lock);
+				return -1;
+			}
+
+			sequential->y_pos += area.height;
 		}
-
-		sequential->y_pos = VIPS_RECT_BOTTOM(&area);
 	}
 
 	/* This is a request for old pixels, or for pixels exactly at the read
@@ -174,8 +176,7 @@ vips_sequential_generate(VipsRegion *out_region,
 		return -1;
 	}
 
-	sequential->y_pos =
-		VIPS_MAX(sequential->y_pos, VIPS_RECT_BOTTOM(r));
+	sequential->y_pos = VIPS_MAX(sequential->y_pos, VIPS_RECT_BOTTOM(r));
 
 	g_mutex_unlock(sequential->lock);
 

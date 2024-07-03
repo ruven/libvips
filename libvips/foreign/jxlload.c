@@ -599,44 +599,34 @@ vips_foreign_load_jxl_fix_exif(VipsForeignLoadJxl *jxl)
 {
 	VipsObjectClass *class = VIPS_OBJECT_GET_CLASS(jxl);
 
-	if (!jxl->exif_data || vips_isprefix("Exif", (char *) jxl->exif_data))
+	if (!jxl->exif_data ||
+		vips_isprefix("Exif", (char *) jxl->exif_data))
 		return 0;
 
-	size_t old_size = jxl->exif_size;
-	uint8_t *old_data = jxl->exif_data;
-	size_t new_size = 0;
-	uint8_t *new_data = NULL;
-
-	if (old_size >= 4) {
-		/* Offset is stored in big-endian
-		 */
-		size_t offset = (old_data[0] << 3) + (old_data[1] << 2) +
-			(old_data[2] << 1) + old_data[3];
-
-		if (offset < old_size - 4) {
-			old_data += 4 + offset;
-			old_size -= 4 + offset;
-
-			new_size = old_size + 6;
-			new_data = g_malloc0(new_size);
-
-			if (!new_data) {
-				vips_error(class->nickname, "%s", _("out of memory"));
-				return -1;
-			}
-
-			memcpy(new_data, "Exif\0\0", 6);
-			memcpy(new_data + 6, old_data, old_size);
-		}
+	if (jxl->exif_size < 4) {
+		g_warning("%s: invalid data in EXIF box", class->nickname);
+		return -1;
 	}
 
-	if (!new_data)
+	/* Offset is stored in big-endian
+	 */
+	size_t offset = GUINT32_FROM_BE(*((guint32 *) jxl->exif_data));
+	if (offset > jxl->exif_size - 4) {
 		g_warning("%s: invalid data in EXIF box", class->nickname);
+		return -1;
+	}
 
-	g_free(jxl->exif_data);
+	size_t new_size = jxl->exif_size - 4 - offset + 6;
+	uint8_t *new_data;
+	if (!(new_data = VIPS_MALLOC(NULL, new_size)))
+		return -1;
 
-	jxl->exif_data = new_data;
+	memcpy(new_data, "Exif\0\0", 6);
+	memcpy(new_data + 6, jxl->exif_data + 4 + offset, new_size - 6);
+
+	VIPS_FREE(jxl->exif_data);
 	jxl->exif_size = new_size;
+	jxl->exif_data = new_data;
 
 	return 0;
 }
@@ -935,7 +925,9 @@ vips_foreign_load_jxl_header(VipsForeignLoad *load)
 
 		case JXL_DEC_COLOR_ENCODING:
 			if (JxlDecoderGetICCProfileSize(jxl->decoder,
+#ifndef HAVE_LIBJXL_0_9
 					&jxl->format,
+#endif
 					JXL_COLOR_PROFILE_TARGET_DATA,
 					&jxl->icc_size)) {
 				vips_foreign_load_jxl_error(jxl,
@@ -954,7 +946,9 @@ vips_foreign_load_jxl_header(VipsForeignLoad *load)
 				return -1;
 
 			if (JxlDecoderGetColorAsICCProfile(jxl->decoder,
+#ifndef HAVE_LIBJXL_0_9
 					&jxl->format,
+#endif
 					JXL_COLOR_PROFILE_TARGET_DATA,
 					jxl->icc_data, jxl->icc_size)) {
 				vips_foreign_load_jxl_error(jxl,
@@ -970,20 +964,22 @@ vips_foreign_load_jxl_header(VipsForeignLoad *load)
 				return -1;
 			}
 
-			if (jxl->delay_count <= jxl->frame_count) {
-				jxl->delay_count += 128;
-				int *new_delay = g_try_realloc(jxl->delay,
-					jxl->delay_count * sizeof(int));
-				if (!new_delay) {
-					vips_error(class->nickname, "%s", _("out of memory"));
-					return -1;
+			if (jxl->info.have_animation) {
+				if (jxl->delay_count <= jxl->frame_count) {
+					jxl->delay_count += 128;
+					int *new_delay = g_try_realloc(jxl->delay,
+						jxl->delay_count * sizeof(int));
+					if (!new_delay) {
+						vips_error(class->nickname, "%s", _("out of memory"));
+						return -1;
+					}
+					jxl->delay = new_delay;
 				}
-				jxl->delay = new_delay;
-			}
 
-			jxl->delay[jxl->frame_count] = VIPS_RINT(1000.0 * h.duration *
-				jxl->info.animation.tps_denominator /
-				jxl->info.animation.tps_numerator);
+				jxl->delay[jxl->frame_count] = VIPS_RINT(1000.0 * h.duration *
+					jxl->info.animation.tps_denominator /
+					jxl->info.animation.tps_numerator);
+			}
 
 			jxl->frame_count++;
 

@@ -329,6 +329,20 @@
 }
 
 {
+   pango_layout_get_pixel_extents
+   Memcheck:Leak
+   ...
+   fun:pango_layout_get_pixel_extents
+}
+
+{
+   FcFontSetList
+   Memcheck:Leak
+   ...
+   fun:FcFontSetList
+}
+
+{
    FcFontSetSort
    Memcheck:Leak
    ...
@@ -367,7 +381,7 @@
    fun:decompose_rpath
 }
 
-# gsk 
+# gsk
 {
    gsk_renderer_realize
    Memcheck:Leak
@@ -392,6 +406,14 @@
 }
 
 {
+   radeon1
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/dri/radeonsi_dri.so
+}
+
+{
    wl_display_read_events
    Memcheck:Leak
    match-leak-kinds: possible
@@ -399,7 +421,7 @@
    fun:wl_display_read_events
 }
 
-# gtk 
+# gtk
 {
    gdk_pixbuf_loader_close
    Memcheck:Leak

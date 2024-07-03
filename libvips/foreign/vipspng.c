@@ -305,20 +305,18 @@ read_new(VipsSource *source, VipsImage *out,
 		PNG_SKIP_sRGB_CHECK_PROFILE, PNG_OPTION_ON);
 #endif /*PNG_SKIP_sRGB_CHECK_PROFILE*/
 
-	/* Don't verify ADLER32 checksums (this can produce a lot of
-	 * warnings).
+	/* In non-fail mode, ignore CRC errors.
 	 */
+	if (read->fail_on < VIPS_FAIL_ON_ERROR) {
 #ifdef PNG_IGNORE_ADLER32
-	png_set_option(read->pPng, PNG_IGNORE_ADLER32, PNG_OPTION_ON);
+		png_set_option(read->pPng, PNG_IGNORE_ADLER32, PNG_OPTION_ON);
 #endif /*PNG_IGNORE_ADLER32*/
 
-	/* Disable CRC checking in fuzzing mode. Most fuzzed images will have
-	 * bad CRCs so this check would break fuzzing.
-	 */
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-	png_set_crc_action(read->pPng,
-		PNG_CRC_QUIET_USE, PNG_CRC_QUIET_USE);
-#endif /*FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION*/
+		/* Ignore and don't calculate checksums.
+		 */
+		png_set_crc_action(read->pPng,
+			PNG_CRC_QUIET_USE, PNG_CRC_QUIET_USE);
+	}
 
 	/* libpng has a default soft limit of 1m pixels per axis.
 	 */
@@ -381,7 +379,7 @@ vips__set_text(VipsImage *out, int i, const char *key, const char *text)
 		 * text segments, but the correct way to support this is with
 		 * png_get_eXIf_1().
 		 */
-		vips_snprintf(name, 256, "png-comment-%d-%s", i, key);
+		g_snprintf(name, 256, "png-comment-%d-%s", i, key);
 
 		vips_image_set_string(out, name, text);
 	}
@@ -1186,7 +1184,7 @@ write_vips(Write *write,
 			return -1;
 
 		str = g_malloc(length + 1);
-		vips_strncpy(str, data, length + 1);
+		g_strlcpy(str, data, length + 1);
 		vips__png_set_text(write->pPng, write->pInfo,
 			"XML:com.adobe.xmp", str);
 		g_free(str);

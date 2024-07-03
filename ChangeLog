@@ -4,10 +4,59 @@ master 8.16
 - add support for OJPEG tiffs [DarthSim]
 - add "palette" metadata item to flag palette images [DarthSim]
 - jxl load and save now support exif, xmp, animation [DarthSim]
+- improved configure output
+- add a filetype blocker for imagemagick
+- add basic g_auto support
+- support for long EXIF values [MarcosAndre]
+- better system error messages on windows [kleisauke]
+- add configurable max coordinate and vips_max_coord_get()
+- improve kill handling
+- PFM save and load now uses scRGB (ie. linear 0-1) [NiHoel]
+- turn `vips_addalpha` into a VipsOperation [RiskoZoSlovenska]
+- add vips_rawsave_target(), vips_rawsave_buffer() [akash-akya]
+- vipsheader supports multiple "-f field" arguments [sergeevabc]
+- webpsave has @target_size parameter to set desired size
+  in bytes [john-parton]
+- webpsave has @passes parameter to set number of passes to achieve
+  desired target_size [john-parton]
+- revise sRGB -> B_W coefficients [daniellovera]
+- add vips_sdf(), vips_clamp(), vips_maxpair(), vips_minpair()
+- more const for the C++ API [Julianiolo]
 
-TBD 8.15.1
+8.15.3
+
+- fix dzsave of >8-bit images to JPEG
+- jpegsave: fix chrominance subsampling mode with jpegli [kleisauke]
+- pngload: disable ADLER32/CRC checking in non-fail mode [kleisauke]
+- improve target_clones support check [kleisauke]
+- fix pipe read limit
+- fix a rare crash on Windows in highly threaded applications [Julianiolo]
+- vipssave: fix infinite loop on Windows with large images [pdbourke]
+
+12/3/24 8.15.2
+
+- fix deflate compression of tiff pyramids [manthey]
+- thumbnail always writes 8-bit thumbnails [turtletowerz]
+- lower min scale factor to 0.0 in svgload and pdfload [lovell]
+- heifload: don't warn on images with nclx profiles [kleisauke]
+- ppmload: ensure multi-line comments are skipped [lovell]
+- fix arrayjoin with some pipelines [TheEssem]
+- fix high Q mono JPEG TIFF write with mozjpeg [cavenel]
+- tiffsave: ensure large file support (>2GB) on MSVC [kleisauke]
+- check linker for target_clones support [lovell]
+
+18/12/23 8.15.1
 
 - reduceh: fix Highway path on SSE2 [DarthSim]
+- fix JPEG in TIFF colourspace for Q >= 90 [heman1-test]
+- fix build with upcoming libjxl 0.9 [kleisauke]
+- jxlsave: lower min effort value to 1 [DarthSim]
+- fix build without libjpeg [ionenwks]
+- fix vips7 plugin load [jcupitt]
+- allow ".jfif" as a suffix for jpegsave [casperbrike]
+- don't let the magick sniffer hijack TIFF [kleisauke]
+- ignore BLOCKED classes in foreign map [jcupitt]
+- add locks to fftw3 calls [akash-akya]
 
 11/11/23 8.15.0
 
@@ -1671,7 +1720,7 @@ _ add vips_foreign_get_suffixes()
   im_vips2raw(), im_magick2vips(), im_png2vips(), im_png2*(), im_ppm2vips(),
   im_vips2ppm(), im_mat2vips(), im_rad2vips(), im_vips2rad()
   redone as classes
-- added argument priorites to help control arg ordering
+- added argument priorities to help control arg ordering
 - generate has a 'stop' param to signal successful early termination
 - added optional output args, eg. x/y for min
 - CLI supports optional output args

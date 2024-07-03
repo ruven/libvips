@@ -135,7 +135,39 @@ int vips__leak = 0;
 GQuark vips__image_pixels_quark = 0;
 #endif /*DEBUG_LEAK*/
 
-static gint64 vips_pipe_read_limit = 1024 * 1024 * 1024;
+/* The maximum coordinate (ie. dimension) value we allow. This can be
+ * overridden with the `--vips-max-coord` CLI arg, or the `VIPS_MAX_COORD` env
+ * var.
+ */
+static char *vips__max_coord_arg = NULL;
+
+/**
+ * vips_max_coord_get:
+ *
+ * Return the maximum coordinate value. This can be the default, a value set
+ * set by the `--vips-max-coord` CLI arg, or a value set in the `VIPS_MAX_COORD`
+ * environment variable.
+ *
+ * These strings can include unit specifiers, eg. "10m" for 10 million pixels.
+ * Values above INT_MAX are not supported.
+ *
+ * Returns: The maximum value a coordinate, or image dimension, can have.
+ */
+int
+vips_max_coord_get(void)
+{
+	// CLI overrides env var
+	const char *as_str = vips__max_coord_arg ?
+		vips__max_coord_arg : g_getenv("VIPS_MAX_COORD");
+
+	if (as_str) {
+		guint64 size = vips__parse_size(as_str);
+
+		return VIPS_CLIP(100, size, INT_MAX);
+	}
+	else
+		return VIPS_DEFAULT_MAX_COORD;
+}
 
 /**
  * vips_get_argv0:
@@ -259,7 +291,7 @@ vips_load_plugins(const char *fmt, ...)
 		return;
 
 	va_start(ap, fmt);
-	(void) vips_vsnprintf(dir_name, VIPS_PATH_MAX - 1, fmt, ap);
+	(void) g_vsnprintf(dir_name, VIPS_PATH_MAX - 1, fmt, ap);
 	va_end(ap);
 
 	g_info("searching \"%s\"", dir_name);
@@ -273,7 +305,7 @@ vips_load_plugins(const char *fmt, ...)
 		char path[VIPS_PATH_MAX];
 		GModule *module;
 
-		vips_snprintf(path, VIPS_PATH_MAX - 1,
+		g_snprintf(path, VIPS_PATH_MAX - 1,
 			"%s" G_DIR_SEPARATOR_S "%s", dir_name, name);
 
 		g_info("loading \"%s\"", path);
@@ -468,11 +500,10 @@ vips_init(const char *argv0)
 		vips_leak_set(TRUE);
 	if (g_getenv("VIPS_TRACE"))
 		vips_cache_set_trace(TRUE);
-	if (g_getenv("VIPS_PIPE_READ_LIMIT"))
-		vips_pipe_read_limit =
-			g_ascii_strtoll(g_getenv("VIPS_PIPE_READ_LIMIT"),
-				NULL, 10);
-	vips_pipe_read_limit_set(vips_pipe_read_limit);
+
+	const char *pipe_read_limit;
+	if ((pipe_read_limit = g_getenv("VIPS_PIPE_READ_LIMIT")))
+		vips_pipe_read_limit_set(vips__parse_size(pipe_read_limit));
 
 #ifdef G_OS_WIN32
 	/* Windows has a limit of 512 files open at once for the fopen() family
@@ -586,12 +617,12 @@ vips_init(const char *argv0)
 		libdir, VIPS_MAJOR_VERSION, VIPS_MINOR_VERSION);
 
 #if ENABLE_DEPRECATED
-	/* Load any vips8 plugins from the vips libdir.
+	/* We had vips8 plugins for a while.
 	 */
 	vips_load_plugins("%s/vips-plugins-%d.%d",
 		libdir, VIPS_MAJOR_VERSION, VIPS_MINOR_VERSION);
 
-	/* Load up any vips7 plugins in the vips libdir. We don't error on
+	/* Load up any vips7 plugins. We don't error on
 	 * failure, it's too annoying to have VIPS refuse to start because of
 	 * a broken plugin.
 	 */
@@ -601,8 +632,7 @@ vips_init(const char *argv0)
 		vips_error_clear();
 	}
 
-	/* Also load from libdir. This is old and slightly broken behaviour
-	 * :-( kept for back compat convenience.
+	/* Also load from libdir :-( kept for back compat convenience.
 	 */
 	if (im_load_plugins("%s", libdir)) {
 		g_warning("%s", vips_error_buffer());
@@ -823,6 +853,15 @@ vips_cache_max_files_cb(const gchar *option_name, const gchar *value,
 	return TRUE;
 }
 
+static gboolean
+vips_pipe_read_limit_cb(const gchar *option_name, const gchar *value,
+	gpointer data, GError **error)
+{
+	vips_pipe_read_limit_set(vips__parse_size(value));
+
+	return TRUE;
+}
+
 static GOptionEntry option_entries[] = {
 	{ "vips-info", 0, G_OPTION_FLAG_HIDDEN | G_OPTION_FLAG_NO_ARG,
 		G_OPTION_ARG_CALLBACK, (gpointer) &vips_lib_info_cb,
@@ -833,6 +872,9 @@ static GOptionEntry option_entries[] = {
 	{ "vips-concurrency", 0, 0,
 		G_OPTION_ARG_INT, &vips__concurrency,
 		N_("evaluate with N concurrent threads"), "N" },
+	{ "vips-max-coord", 0, 0,
+		G_OPTION_ARG_STRING, &vips__max_coord_arg,
+		N_("maximum coordinate"), NULL },
 	{ "vips-tile-width", 0, G_OPTION_FLAG_HIDDEN,
 		G_OPTION_ARG_INT, &vips__tile_width,
 		N_("set tile width to N (DEBUG)"), "N" },
@@ -882,7 +924,7 @@ static GOptionEntry option_entries[] = {
 		G_OPTION_ARG_CALLBACK, (gpointer) &vips_lib_config_cb,
 		N_("print libvips config"), NULL },
 	{ "vips-pipe-read-limit", 0, 0,
-		G_OPTION_ARG_INT64, (gpointer) &vips_pipe_read_limit,
+		G_OPTION_ARG_CALLBACK, (gpointer) &vips_pipe_read_limit_cb,
 		N_("read at most this many bytes from a pipe"), NULL },
 	{ NULL }
 };
@@ -925,20 +967,20 @@ extract_prefix(const char *dir, const char *name)
 		char *cwd;
 
 		cwd = g_get_current_dir();
-		vips_snprintf(edir, VIPS_PATH_MAX,
+		g_snprintf(edir, VIPS_PATH_MAX,
 			"%s" G_DIR_SEPARATOR_S "%s", cwd, dir);
 		g_free(cwd);
 	}
 	else {
-		vips_strncpy(edir, dir, VIPS_PATH_MAX);
+		g_strlcpy(edir, dir, VIPS_PATH_MAX);
 	}
 
 	/* Chop off the trailing prog name, plus the trailing
 	 * G_DIR_SEPARATOR_S.
 	 */
-	if (!vips_ispostfix(edir, name))
+	if (!g_str_has_suffix(edir, name))
 		return NULL;
-	vips_strncpy(vname, edir, VIPS_PATH_MAX);
+	g_strlcpy(vname, edir, VIPS_PATH_MAX);
 	vname[strlen(edir) - strlen(name) - 1] = '\0';
 
 	/* Remove any "/./", any trailing "/.", any trailing "/".
@@ -948,16 +990,16 @@ extract_prefix(const char *dir, const char *name)
 				vname + i))
 			memmove(vname + i, vname + i + 2,
 				strlen(vname + i + 2) + 1);
-	if (vips_ispostfix(vname, G_DIR_SEPARATOR_S "."))
+	if (g_str_has_suffix(vname, G_DIR_SEPARATOR_S "."))
 		vname[strlen(vname) - 2] = '\0';
-	if (vips_ispostfix(vname, G_DIR_SEPARATOR_S))
+	if (g_str_has_suffix(vname, G_DIR_SEPARATOR_S))
 		vname[strlen(vname) - 1] = '\0';
 
 	g_info("canonicalised path = \"%s\"", vname);
 
 	/* Ought to be a "/bin" at the end now.
 	 */
-	if (!vips_ispostfix(vname, G_DIR_SEPARATOR_S "bin"))
+	if (!g_str_has_suffix(vname, G_DIR_SEPARATOR_S "bin"))
 		return NULL;
 	vname[strlen(vname) - strlen(G_DIR_SEPARATOR_S "bin")] = '\0';
 
@@ -980,7 +1022,7 @@ scan_path(char *path, const char *name)
 
 		/* Form complete path.
 		 */
-		vips_snprintf(str, VIPS_PATH_MAX,
+		g_snprintf(str, VIPS_PATH_MAX,
 			"%s" G_DIR_SEPARATOR_S "%s", p, name);
 
 		g_info("looking in \"%s\" for \"%s\"",
@@ -1016,12 +1058,12 @@ find_file(const char *name)
 		/* Windows always searches '.' first, so prepend cwd to path.
 		 */
 		dir = g_get_current_dir();
-		vips_snprintf(full_path, VIPS_PATH_MAX,
+		g_snprintf(full_path, VIPS_PATH_MAX,
 			"%s" G_SEARCHPATH_SEPARATOR_S "%s", dir, path);
 		g_free(dir);
 	}
 #else  /*!G_OS_WIN32*/
-	vips_strncpy(full_path, path, VIPS_PATH_MAX);
+	g_strlcpy(full_path, path, VIPS_PATH_MAX);
 #endif /*G_OS_WIN32*/
 
 	if ((prefix = scan_path(full_path, name)))
@@ -1077,7 +1119,7 @@ guess_prefix(const char *argv0, const char *name)
 		char *resolved;
 
 		dir = g_get_current_dir();
-		vips_snprintf(full_path, VIPS_PATH_MAX,
+		g_snprintf(full_path, VIPS_PATH_MAX,
 			"%s" G_DIR_SEPARATOR_S "%s", dir, argv0);
 		g_free(dir);
 

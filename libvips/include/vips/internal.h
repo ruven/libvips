@@ -223,11 +223,11 @@ int vips__has_extension_block(VipsImage *im);
 /* TODO(kleisauke): VIPS_API is required by vipsheader.
  */
 VIPS_API
-void *vips__read_extension_block(VipsImage *im, int *size);
+void *vips__read_extension_block(VipsImage *im, size_t *size);
 /* TODO(kleisauke): VIPS_API is required by vipsedit.
  */
 VIPS_API
-int vips__write_extension_block(VipsImage *im, void *buf, int size);
+int vips__write_extension_block(VipsImage *im, void *buf, size_t size);
 int vips__writehist(VipsImage *image);
 /* TODO(kleisauke): VIPS_API is required by vipsedit.
  */
@@ -292,7 +292,6 @@ void vips__draw_line_direct(VipsImage *image, int x1, int y1, int x2, int y2,
 void vips__draw_circle_direct(VipsImage *image, int cx, int cy, int r,
 	VipsDrawScanline draw_scanline, void *client);
 
-int vips__insert_just_one(VipsRegion *out, VipsRegion *in, int x, int y);
 int vips__insert_paste_region(VipsRegion *out, VipsRegion *in, VipsRect *pos);
 
 /* Register base vips interpolators, called during startup.

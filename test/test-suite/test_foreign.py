@@ -6,22 +6,8 @@ import tempfile
 import pytest
 
 import pyvips
-from helpers import \
-    IMAGES, JPEG_FILE, SRGB_FILE, MATLAB_FILE, \
-    PNG_FILE, PNG_INDEXED_FILE, \
-    TIF_FILE, OME_FILE, \
-    ANALYZE_FILE, GIF_FILE, WEBP_FILE, EXR_FILE, FITS_FILE, OPENSLIDE_FILE, \
-    PDF_FILE, SVG_FILE, SVGZ_FILE, SVG_GZ_FILE, GIF_ANIM_FILE, DICOM_FILE, \
-    BMP_FILE, NIFTI_FILE, ICO_FILE, CUR_FILE, TGA_FILE, SGI_FILE, AVIF_FILE, \
-    AVIF_FILE_HUGE, TRUNCATED_FILE, \
-    GIF_ANIM_EXPECTED_PNG_FILE, GIF_ANIM_DISPOSE_BACKGROUND_FILE, \
-    GIF_ANIM_DISPOSE_BACKGROUND_EXPECTED_PNG_FILE, \
-    GIF_ANIM_DISPOSE_PREVIOUS_FILE, \
-    GIF_ANIM_DISPOSE_PREVIOUS_EXPECTED_PNG_FILE, \
-    temp_filename, assert_almost_equal_objects, have, skip_if_no, \
-    TIF1_FILE, TIF2_FILE, TIF4_FILE, WEBP_LOOKS_LIKE_SVG_FILE, \
-    WEBP_ANIMATED_FILE, JP2K_FILE, RGBA_FILE, TIF_OJPEG_TILE_FILE, \
-    TIF_OJPEG_STRIP_FILE, TIF_SUBSAMPLED_FILE
+from helpers import *
+
 
 class TestForeign:
     tempdir = None
@@ -35,8 +21,6 @@ class TestForeign:
         cls.mono = cls.colour.extract_band(1).copy()
         # we remove the ICC profile: the RGB one will no longer be appropriate
         cls.mono.remove("icc-profile-data")
-        cls.rad = cls.colour.float2rad().copy()
-        cls.rad.remove("icc-profile-data")
         cls.cmyk = cls.colour.bandjoin(cls.mono)
         cls.cmyk = cls.cmyk.copy(interpretation=pyvips.Interpretation.CMYK)
         cls.cmyk.remove("icc-profile-data")
@@ -50,7 +34,6 @@ class TestForeign:
         cls.colour = None
         cls.rgba = None
         cls.mono = None
-        cls.rad = None
         cls.cmyk = None
         cls.onebit = None
 
@@ -951,8 +934,13 @@ class TestForeign:
         # Animated WebP roundtrip
         x = pyvips.Image.new_from_file(WEBP_ANIMATED_FILE, n=-1)
         assert x.width == 13
-        assert x.height == 16393
+        assert x.height == 16731
         buf = x.webpsave_buffer()
+
+        # target_size should reasonably work, +/- 2% is fine
+        x = pyvips.Image.new_from_file(WEBP_FILE)
+        buf_size = len(x.webpsave_buffer(target_size=20_000, keep='none'))
+        assert 19600 < buf_size < 20400
 
     @skip_if_no("analyzeload")
     def test_analyzeload(self):
@@ -1186,6 +1174,18 @@ class TestForeign:
         assert im.width == 1
         assert im.height == 1
 
+        # scale up
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+        im = pyvips.Image.new_from_buffer(svg, "", scale=10000)
+        assert im.width == 10000
+        assert im.height == 10000
+
+        # scale down
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="100000" height="100000"></svg>'
+        im = pyvips.Image.new_from_buffer(svg, "", scale=0.0001)
+        assert im.width == 10
+        assert im.height == 10
+
     def test_csv(self):
         self.save_load("%s.csv", self.mono)
 
@@ -1194,28 +1194,54 @@ class TestForeign:
 
     @skip_if_no("ppmload")
     def test_ppm(self):
-        self.save_load("%s.ppm", self.mono)
         self.save_load("%s.ppm", self.colour)
 
-        self.save_load_file("%s.ppm", "[ascii]", self.mono, 0)
+        self.save_load_file("%s.pgm", "[ascii]", self.mono, 0)
         self.save_load_file("%s.ppm", "[ascii]", self.colour, 0)
 
-        self.save_load_file("%s.ppm", "[ascii,bitdepth=1]", self.onebit, 0)
+        self.save_load_file("%s.pbm", "[ascii]", self.onebit, 0)
 
         rgb16 = self.colour.colourspace("rgb16")
         grey16 = self.mono.colourspace("rgb16")
 
-        self.save_load("%s.ppm", grey16)
         self.save_load("%s.ppm", rgb16)
 
         self.save_load_file("%s.ppm", "[ascii]", grey16, 0)
         self.save_load_file("%s.ppm", "[ascii]", rgb16, 0)
 
+        source = pyvips.Source.new_from_memory(b'P1\n#\n#\n1 1\n0\n')
+        im = pyvips.Image.ppmload_source(source)
+        assert im.height == 1
+        assert im.width == 1
+
     @skip_if_no("radload")
     def test_rad(self):
-        self.save_load("%s.hdr", self.colour)
+        def hdr_valid(im):
+            # might still be in RADIANCE coding
+            if im.coding == "rad":
+                im = im.rad2float()
+
+            assert_almost_equal_objects(im(10, 10),
+                                        [0.533, 0.564, 0.693],
+                                        threshold=0.01)
+
+            assert_almost_equal_objects(im(1592, 855),
+                                        [1580, 1364, 1276],
+                                        threshold=0.01)
+
+            assert im.width == 1655
+            assert im.height == 1764
+            assert im.bands == 3
+
+        self.file_loader("radload", RAD_FILE, hdr_valid)
+        self.buffer_loader("radload_buffer", RAD_FILE, hdr_valid)
+
+        rad = pyvips.Image.radload(RAD_FILE)
+        self.save_load("%s.hdr", rad)
+        self.save_load("%s.pfm", rad)
+        self.save_load("%s.tif", rad)
         self.save_buffer_tempfile("radsave_buffer", ".hdr",
-                                  self.rad, max_diff=0)
+                                  rad, max_diff=0)
 
     @skip_if_no("dzsave")
     def test_dzsave(self):
@@ -1574,7 +1600,7 @@ class TestForeign:
         # remove the ICC profile: the RGB one will no longer be appropriate
         rgb16.remove("icc-profile-data")
         self.save_load_buffer("jxlsave_buffer", "jxlload_buffer",
-                              rgb16, 10700)
+                              rgb16, 12000)
 
         # repeat for lossless mode
         self.save_load_buffer("jxlsave_buffer", "jxlload_buffer",

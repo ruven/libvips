@@ -235,10 +235,8 @@ vips_foreign_load_pdf_get_page(VipsForeignLoadPdf *pdf, int page_no)
 		printf("vips_foreign_load_pdf_get_page: %d\n", page_no);
 #endif /*DEBUG*/
 
-		if (!(pdf->page =
-					poppler_document_get_page(pdf->doc, page_no))) {
-			vips_error(class->nickname,
-				_("unable to load page %d"), page_no);
+		if (!(pdf->page = poppler_document_get_page(pdf->doc, page_no))) {
+			vips_error(class->nickname, _("unable to load page %d"), page_no);
 			return -1;
 		}
 		pdf->current_page = page_no;
@@ -473,10 +471,12 @@ vips_foreign_load_pdf_generate(VipsRegion *out_region,
 
 	/* Cairo makes pre-multipled BRGA, we must byteswap and unpremultiply.
 	 */
-	for (y = 0; y < r->height; y++)
-		vips__premultiplied_bgra2rgba(
-			(guint32 *) VIPS_REGION_ADDR(out_region, r->left, r->top + y),
-			r->width);
+	for (y = 0; y < r->height; y++) {
+		guint32 *scanline =
+			(guint32 *) VIPS_REGION_ADDR(out_region, r->left, r->top + y);
+
+		vips__premultiplied_bgra2rgba(scanline, r->width);
+	}
 
 	return 0;
 }
@@ -567,7 +567,7 @@ vips_foreign_load_pdf_class_init(VipsForeignLoadPdfClass *class)
 		_("Factor to scale by"),
 		VIPS_ARGUMENT_OPTIONAL_INPUT,
 		G_STRUCT_OFFSET(VipsForeignLoadPdf, scale),
-		0.001, 100000.0, 1.0);
+		0.0, 100000.0, 1.0);
 
 	VIPS_ARG_BOXED(class, "background", 24,
 		_("Background"),
@@ -613,8 +613,7 @@ G_DEFINE_TYPE(VipsForeignLoadPdfFile, vips_foreign_load_pdf_file,
 static void
 vips_foreign_load_pdf_file_dispose(GObject *gobject)
 {
-	VipsForeignLoadPdfFile *file =
-		(VipsForeignLoadPdfFile *) gobject;
+	VipsForeignLoadPdfFile *file = (VipsForeignLoadPdfFile *) gobject;
 
 	VIPS_FREE(file->uri);
 

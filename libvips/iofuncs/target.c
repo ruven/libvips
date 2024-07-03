@@ -175,15 +175,17 @@ vips_target_write_real(VipsTarget *target, const void *data, size_t length)
 	return result;
 }
 
-static off_t
-vips_target_seek_real(VipsTarget *target, off_t offset, int whence)
+static gint64
+vips_target_seek_real(VipsTarget *target, gint64 offset, int whence)
 {
 	VipsConnection *connection = VIPS_CONNECTION(target);
 	const char *nick = vips_connection_nick(connection);
 
-	off_t new_position;
+	gint64 new_position;
 
-	VIPS_DEBUG_MSG("vips_target_seek_real: offset = %ld, whence = %d\n",
+	VIPS_DEBUG_MSG(
+		"vips_target_seek_real: offset = %" G_GINT64_FORMAT
+		", whence = %d\n",
 		offset, whence);
 
 	if (target->memory_buffer) {
@@ -212,7 +214,11 @@ vips_target_seek_real(VipsTarget *target, off_t offset, int whence)
 		target->position = new_position;
 	}
 	else
-		new_position = lseek(connection->descriptor, offset, whence);
+		/* We need to use the vips__seek() wrapper so we can seek long
+		 * files on Windows.
+		 */
+		new_position = vips__seek_no_error(connection->descriptor,
+			offset, whence);
 
 	return new_position;
 }
@@ -453,9 +459,10 @@ vips_target_write_unbuffered(VipsTarget *target,
 		return 0;
 
 	while (length > 0) {
-		gint64 bytes_written;
-
-		bytes_written = class->write(target, data, length);
+		// write() uses int not size_t on windows, so we need to chunk
+		// ... max 1gb, why not
+		int chunk_size = VIPS_MIN(1024 * 1024 * 1024, length);
+		gint64 bytes_written = class->write(target, data, chunk_size);
 
 		/* n == 0 isn't strictly an error, but we treat it as
 		 * one to make sure we don't get stuck in this loop.
@@ -539,7 +546,7 @@ vips_target_write(VipsTarget *target, const void *buffer, size_t length)
  *
  * Arguments exactly as read(2).
  *
- * Reading froma  target sounds weird, but libtiff needs this for
+ * Reading from a target sounds weird, but libtiff needs this for
  * multi-page writes. This method will fail for targets like pipes.
  *
  * Returns: the number of bytes read, 0 on end of file, -1 on error.
@@ -570,14 +577,15 @@ vips_target_read(VipsTarget *target, void *buffer, size_t length)
  *
  * Returns: the new seek position, -1 on error.
  */
-off_t
-vips_target_seek(VipsTarget *target, off_t position, int whence)
+gint64
+vips_target_seek(VipsTarget *target, gint64 position, int whence)
 {
 	VipsTargetClass *class = VIPS_TARGET_GET_CLASS(target);
 
-	off_t new_position;
+	gint64 new_position;
 
-	VIPS_DEBUG_MSG("vips_target_seek: pos = %ld, whence = %d\n",
+	VIPS_DEBUG_MSG("vips_target_seek: pos = %" G_GINT64_FORMAT
+		", whence = %d\n",
 		position, whence);
 
 	if (vips_target_flush(target))
@@ -585,7 +593,7 @@ vips_target_seek(VipsTarget *target, off_t position, int whence)
 
 	new_position = class->seek(target, position, whence);
 
-	VIPS_DEBUG_MSG("vips_target_seek: new_position = %ld\n",
+	VIPS_DEBUG_MSG("vips_target_seek: new_position = %" G_GINT64_FORMAT "\n",
 		new_position);
 
 	return new_position;
@@ -637,20 +645,6 @@ vips_target_end(VipsTarget *target)
 	target->ended = TRUE;
 
 	return 0;
-}
-
-/**
- * vips_target_finish:
- * @target: target to operate on
- * @buffer: bytes to write
- * @length: length of @buffer in bytes
- *
- * Deprecated in favour of vips_target_end().
- */
-void
-vips_target_finish(VipsTarget *target)
-{
-	(void) vips_target_end(target);
 }
 
 /**

@@ -243,10 +243,10 @@ thumbnail_write_file(VipsObject *process, VipsImage *im, const char *filename)
 	if ((p = strrchr(file, '.')))
 		*p = '\0';
 
-	/* Don't use vips_snprintf(), we only want to optionally substitute a
+	/* Don't use g_snprintf(), we only want to optionally substitute a
 	 * single %s.
 	 */
-	vips_strncpy(buf, output_format, FILENAME_MAX);
+	g_strlcpy(buf, output_format, FILENAME_MAX);
 	vips__substitute(buf, FILENAME_MAX, file);
 
 	/* output_format can be an absolute path, in which case we discard the
@@ -356,8 +356,7 @@ thumbnail_process(VipsObject *process, const char *name)
 		if (!(target = vips_target_new_to_descriptor(1)))
 			return -1;
 
-		if (vips_image_write_to_target(image,
-				output_format, target, NULL)) {
+		if (vips_image_write_to_target(image, output_format, target, NULL)) {
 			VIPS_UNREF(image);
 			VIPS_UNREF(target);
 			return -1;

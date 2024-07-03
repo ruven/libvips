@@ -421,13 +421,20 @@ vips_foreign_init(VipsForeign *object)
 static void *
 file_add_class(VipsForeignClass *class, GSList **files)
 {
-	/* We exclude "rawload" as it has a different API.
+	VipsOperationClass *operation_class = VIPS_OPERATION_CLASS(class);
+
+	// don't consider blocked classes ... we don't want eg. sniffers to run
+	if (operation_class->flags & VIPS_OPERATION_BLOCKED)
+		return NULL;
+
+	// exclude "rawload" as it has a different API.
+	if (vips_isprefix("rawload", VIPS_OBJECT_CLASS(class)->nickname))
+		return NULL;
+
+	/* Append so we don't reverse the list of files. Sort will
+	 * not reorder items of equal priority.
 	 */
-	if (!vips_isprefix("rawload", VIPS_OBJECT_CLASS(class)->nickname))
-		/* Append so we don't reverse the list of files. Sort will
-		 * not reorder items of equal priority.
-		 */
-		*files = g_slist_append(*files, class);
+	*files = g_slist_append(*files, class);
 
 	return NULL;
 }
@@ -542,8 +549,8 @@ vips_foreign_find_load_sub(VipsForeignLoadClass *load_class,
 
 	/* Ignore the buffer and source loaders.
 	 */
-	if (vips_ispostfix(object_class->nickname, "_buffer") ||
-		vips_ispostfix(object_class->nickname, "_source"))
+	if (g_str_has_suffix(object_class->nickname, "_buffer") ||
+		g_str_has_suffix(object_class->nickname, "_source"))
 		return NULL;
 
 #ifdef DEBUG
@@ -658,7 +665,7 @@ vips_foreign_find_load_buffer_sub(VipsForeignLoadClass *load_class,
 
 	/* Skip non-buffer loaders.
 	 */
-	if (!vips_ispostfix(object_class->nickname, "_buffer"))
+	if (!g_str_has_suffix(object_class->nickname, "_buffer"))
 		return NULL;
 
 	if (load_class->is_a_buffer) {
@@ -716,7 +723,7 @@ vips_foreign_find_load_source_sub(void *item, void *a, void *b)
 
 	/* Skip non-source loaders.
 	 */
-	if (!vips_ispostfix(object_class->nickname, "_source"))
+	if (!g_str_has_suffix(object_class->nickname, "_source"))
 		return NULL;
 
 	if (load_class->is_a_source) {
@@ -1022,7 +1029,7 @@ vips_foreign_load_start(VipsImage *out, void *a, void *b)
 		 * Some versions of ImageMagick give different results between
 		 * Ping and Load for some formats, for example.
 		 *
-		 * If the load fails, we need to stop
+		 * If the load fails, we need to stop.
 		 */
 		if (class->load(load) ||
 			vips_image_pio_input(load->real) ||
@@ -1426,8 +1433,7 @@ vips__foreign_convert_saveable(VipsImage *in, VipsImage **ready,
 			in->Type != VIPS_INTERPRETATION_XYZ) {
 			VipsImage *out;
 
-			if (vips_colourspace(in, &out,
-					VIPS_INTERPRETATION_scRGB, NULL)) {
+			if (vips_colourspace(in, &out, VIPS_INTERPRETATION_scRGB, NULL)) {
 				g_object_unref(in);
 				return -1;
 			}
@@ -1719,7 +1725,7 @@ vips_foreign_save_remove_metadata(VipsImage *image,
 	if (!vips_isprefix(field, "png-comment-") &&
 		!vips_isprefix(field, "magickprofile-") &&
 		strcmp(field, VIPS_META_IMAGEDESCRIPTION) != 0 &&
-		!vips_ispostfix(field, "-data"))
+		!g_str_has_suffix(field, "-data"))
 		return NULL;
 
 	if ((strcmp(field, VIPS_META_EXIF_NAME) == 0 &&
@@ -1794,8 +1800,7 @@ vips_foreign_save_build(VipsObject *object)
 		save->keep |= VIPS_FOREIGN_KEEP_ICC;
 
 	if (save->in) {
-		VipsForeignSaveClass *class =
-			VIPS_FOREIGN_SAVE_GET_CLASS(save);
+		VipsForeignSaveClass *class = VIPS_FOREIGN_SAVE_GET_CLASS(save);
 		VipsImage *ready;
 		VipsImage *x;
 
@@ -1956,8 +1961,8 @@ vips_foreign_find_save_sub(VipsForeignSaveClass *save_class,
 
 	/* Skip non-file savers.
 	 */
-	if (vips_ispostfix(object_class->nickname, "_buffer") ||
-		vips_ispostfix(object_class->nickname, "_target"))
+	if (g_str_has_suffix(object_class->nickname, "_buffer") ||
+		g_str_has_suffix(object_class->nickname, "_target"))
 		return NULL;
 
 	/* vips_foreign_find_save() has already removed any options from the
@@ -2118,7 +2123,7 @@ vips_foreign_find_save_target_sub(VipsForeignSaveClass *save_class,
 
 	if (!G_TYPE_IS_ABSTRACT(G_TYPE_FROM_CLASS(class)) &&
 		class->suffs &&
-		vips_ispostfix(object_class->nickname, "_target") &&
+		g_str_has_suffix(object_class->nickname, "_target") &&
 		vips_filename_suffix_match(suffix, class->suffs))
 		return save_class;
 
@@ -2176,7 +2181,7 @@ vips_foreign_find_save_buffer_sub(VipsForeignSaveClass *save_class,
 
 	if (!G_TYPE_IS_ABSTRACT(G_TYPE_FROM_CLASS(class)) &&
 		class->suffs &&
-		vips_ispostfix(object_class->nickname, "_buffer") &&
+		g_str_has_suffix(object_class->nickname, "_buffer") &&
 		vips_filename_suffix_match(suffix, class->suffs))
 		return save_class;
 
@@ -2714,7 +2719,7 @@ vips_jxlsave_target(VipsImage *in, VipsTarget *target, ...)
  * * @dpi: %gdouble, render at this DPI
  * * @scale: %gdouble, scale render by this factor
  * * @background: #VipsArrayDouble background colour
- * * @password: %gchararray background colour
+ * * @password: %gchararray PDF password
  *
  * Render a PDF file into a VIPS image.
  *
@@ -3002,8 +3007,9 @@ vips_foreign_operation_init(void)
 	extern GType vips_foreign_save_tiff_target_get_type(void);
 
 	extern GType vips_foreign_load_raw_get_type(void);
-	extern GType vips_foreign_save_raw_get_type(void);
-	extern GType vips_foreign_save_raw_fd_get_type(void);
+	extern GType vips_foreign_save_raw_file_get_type(void);
+	extern GType vips_foreign_save_raw_buffer_get_type(void);
+	extern GType vips_foreign_save_raw_target_get_type(void);
 
 	extern GType vips_foreign_load_magick_file_get_type(void);
 	extern GType vips_foreign_load_magick_buffer_get_type(void);
@@ -3083,8 +3089,9 @@ vips_foreign_operation_init(void)
 	vips_foreign_print_matrix_get_type();
 
 	vips_foreign_load_raw_get_type();
-	vips_foreign_save_raw_get_type();
-	vips_foreign_save_raw_fd_get_type();
+	vips_foreign_save_raw_file_get_type();
+	vips_foreign_save_raw_buffer_get_type();
+	vips_foreign_save_raw_target_get_type();
 
 	vips_foreign_load_vips_file_get_type();
 	vips_foreign_load_vips_source_get_type();
